@@ -715,6 +715,7 @@ static void do_awh(gmx::ISerializer* serializer, gmx::AwhParams* awhParams, int 
 
 static void do_pull(gmx::ISerializer* serializer, pull_params_t* pull, int file_version, int ePullOld)
 {
+    //TODO Some parsing done here, maybe no need to change it
     int  eGeomOld = -1;
     ivec dimOld;
     int  g;

@@ -346,6 +346,13 @@ static void apply_forces_coord(struct pull_t*               pull,
         }
         apply_forces_grp(&pull->group[pcrd.params.group[1]], masses, f_tot, 1, f, pull->nthreads);
     }
+    else if (pcrd.params.eGeom == epullMeta)
+    {
+        //TODO this is where we loop over pull cords I think
+        //access the correct variablees of pull->coord[coord]
+        //Send this to an expression parser of some sort and obtain derivatives.
+        //then redistribute the forces
+    }
     else
     {
         if (pcrd.params.eGeom == epullgDIRRELATIVE)

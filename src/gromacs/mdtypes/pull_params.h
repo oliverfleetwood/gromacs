@@ -67,6 +67,7 @@ typedef struct
 } t_pull_group;
 
 /*! Maximum number of pull groups that can be used in a pull coordinate */
+//TODO maybe update the number of pull groups here, we'll see. Maybe write a special case for it in tpxio.cpp
 static const int c_pullCoordNgroupMax = 6;
 
 /*! \brief Struct that defines a pull coordinate */
