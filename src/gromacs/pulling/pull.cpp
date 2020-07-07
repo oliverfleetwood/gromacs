@@ -80,6 +80,8 @@
 #include "gromacs/utility/strconvert.h"
 
 #include "pull_internal.h"
+#include "../mdtypes/md_enums.h"
+// #include "external/muparser/include/muParser.h"
 
 namespace gmx
 {
@@ -346,10 +348,20 @@ static void apply_forces_coord(struct pull_t*               pull,
         }
         apply_forces_grp(&pull->group[pcrd.params.group[1]], masses, f_tot, 1, f, pull->nthreads);
     }
-    else if (pcrd.params.eGeom == epullMeta)
+    else if (pcrd.params.eGeom == epullgMETA)
     {
         //TODO this is where we loop over pull cords I think
-        //access the correct variablees of pull->coord[coord]
+        printf("In loop for epull meta forces");
+        //access the correct variables of pull->coord[coord]
+
+        for (int previous_coord=0; previous_coord < coord; previous_coord++)
+        {
+
+            pull_coord_work_t& pre_pcrd = pull->coord[previous_coord];
+            double value = pre_pcrd.spatialData.value;
+            printf("In loop for epull previous coord forces %d : value %4.2f\n", previous_coord, value);
+        }
+
         //Send this to an expression parser of some sort and obtain derivatives.
         //then redistribute the forces
     }
@@ -677,6 +689,39 @@ static double get_dihedral_angle_coord(PullCoordSpatialData* spatialData)
     return sign * phi;
 }
 
+/* Calculates pull->coord[coord_ind].spatialData.value for meta pull coordinates
+ * This requires the values of the pull coordinates of lower indices to be set
+ */
+static double get_meta_pull_value(struct pull_t* pull, int coord_ind)
+{
+    printf("In loop for epull meta");
+    double result = 0;
+    double value = 0;
+    /*try
+    {
+
+        mu::Parser p;
+        p.DefineVar("x", &value);
+        p.SetExpr("sin(10*x)");*/
+        for (int previous_coord = 0; previous_coord < coord_ind; previous_coord++)
+        {
+            pull_coord_work_t* pre_pcrd = &pull->coord[previous_coord];
+            PullCoordSpatialData& pre_spatialData = pre_pcrd->spatialData;
+            value = pre_spatialData.value;
+            //result += p.Eval();
+            result += value*value;
+            printf("In loop for epull previous coord %d: value %4.2f, result %4.2f\n",
+                   previous_coord, value, result);
+        }
+    /*}
+    catch (mu::Parser::exception_type &e)
+    {
+        // std::cout << e.GetMsg() << std::endl;
+        printf("muParser failed to evaluate expression. %s", e.GetMsg().c_str());
+    }*/
+    return result;
+}
+
 /* Calculates pull->coord[coord_ind].value.
  * This function also updates pull->coord[coord_ind].dr.
  */
@@ -714,6 +759,9 @@ static void get_pull_coord_distance(struct pull_t* pull, int coord_ind, const t_
         case epullgDIHEDRAL: spatialData.value = get_dihedral_angle_coord(&spatialData); break;
         case epullgANGLEAXIS:
             spatialData.value = gmx_angle_between_dvecs(spatialData.dr01, spatialData.vec);
+            break;
+        case epullgMETA:
+            spatialData.value = get_meta_pull_value(pull, coord_ind);
             break;
         default: gmx_incons("Unsupported pull type in get_pull_coord_distance");
     }
@@ -960,6 +1008,8 @@ do_constraint(struct pull_t* pull, t_pbc* pbc, rvec* x, rvec* v, gmx_bool bMaste
                     dsvmul(lambda * rm * pgrp0->invtm, vec, dr0);
                     dr_tot[c] += -lambda;
                     break;
+                case epullgMETA:
+                    gmx_fatal(FARGS, "META coordinates are incompatible with constraints.");
                 default: gmx_incons("Invalid enumeration value for eGeom");
             }
 
@@ -1960,6 +2010,7 @@ struct pull_t* init_pull(FILE*                     fplog,
             case epullgDIR:
             case epullgDIRPBC:
             case epullgCYL:
+            case epullgMETA:
             case epullgANGLEAXIS:
                 copy_rvec_to_dvec(pull_params->coord[c].vec, pcrd->spatialData.vec);
                 break;

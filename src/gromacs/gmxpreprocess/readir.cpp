@@ -86,6 +86,7 @@
 #include "gromacs/utility/stringcompare.h"
 #include "gromacs/utility/stringutil.h"
 #include "gromacs/utility/textwriter.h"
+#include "../mdtypes/md_enums.h"
 
 #define MAXPTR 254
 #define NOGID 255
@@ -4315,7 +4316,8 @@ void triple_check(const char* mdparin, t_inputrec* ir, gmx_mtop_t* sys, warninp_
         bWarned = FALSE;
         for (i = 0; i < ir->pull->ncoord && !bWarned; i++)
         {
-            if (ir->pull->coord[i].group[0] == 0 || ir->pull->coord[i].group[1] == 0)
+            if (ir->pull->coord[i].eGeom != epullgMETA
+                && (ir->pull->coord[i].group[0] == 0 || ir->pull->coord[i].group[1] == 0))
             {
                 absolute_reference(ir, sys, FALSE, AbsRef);
                 for (m = 0; m < DIM; m++)

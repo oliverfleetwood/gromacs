@@ -59,6 +59,7 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
+#include "../mdtypes/md_enums.h"
 
 
 static void string2dvec(const char buf[], dvec nums)
@@ -370,11 +371,18 @@ std::vector<std::string> read_pullparams(std::vector<t_inpfile>* inp, pull_param
             case epullgDIHEDRAL: pcrd->ngroup = 6; break;
             case epullgDIRRELATIVE:
             case epullgANGLE: pcrd->ngroup = 4; break;
+            case epullgMETA: pcrd->ngroup = 0; break;
             default: pcrd->ngroup = 2; break;
         }
 
         nscan = sscanf(groups, "%d %d %d %d %d %d %d", &pcrd->group[0], &pcrd->group[1],
                        &pcrd->group[2], &pcrd->group[3], &pcrd->group[4], &pcrd->group[5], &idum);
+        sprintf(buf, "nscan %d\n", nscan);
+        if (nscan == -1 && pcrd->eGeom == epullgMETA)
+        {
+            // nscan returns -1 instead of 0. Just change its value and let the call fall through
+            nscan = 0;
+        }
         if (nscan != pcrd->ngroup)
         {
             auto message =
@@ -498,7 +506,10 @@ void make_pull_coords(pull_params_t* pull)
     for (c = 0; c < pull->ncoord; c++)
     {
         pcrd = &pull->coord[c];
-
+        if(pcrd->eGeom == epullgMETA && pcrd->ngroup == 0)
+        {
+            continue;
+        }
         if (pcrd->group[0] < 0 || pcrd->group[0] >= pull->ngroup || pcrd->group[1] < 0
             || pcrd->group[1] >= pull->ngroup)
         {
