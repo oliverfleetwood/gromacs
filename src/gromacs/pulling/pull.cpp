@@ -78,10 +78,12 @@
 #include "gromacs/utility/real.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/strconvert.h"
+#include "gromacs/mdtypes/md_enums.h"
+#include "muParser.h"
 
 #include "pull_internal.h"
 #include "../mdtypes/md_enums.h"
-// #include "external/muparser/include/muParser.h"
+
 
 namespace gmx
 {
@@ -331,6 +333,9 @@ static void apply_forces_coord(struct pull_t*               pull,
      * region instead of potential parallel regions within apply_forces_grp.
      * But there could be overlap between pull groups and this would lead
      * to data races.
+     *
+     * This may also lead to potential issues with force redistribution
+     * for meta pull coordinates
      */
 
     const pull_coord_work_t& pcrd = pull->coord[coord];
@@ -350,20 +355,7 @@ static void apply_forces_coord(struct pull_t*               pull,
     }
     else if (pcrd.params.eGeom == epullgMETA)
     {
-        //TODO this is where we loop over pull cords I think
-        printf("In loop for epull meta forces");
-        //access the correct variables of pull->coord[coord]
-
-        for (int previous_coord=0; previous_coord < coord; previous_coord++)
-        {
-
-            pull_coord_work_t& pre_pcrd = pull->coord[previous_coord];
-            double value = pre_pcrd.spatialData.value;
-            printf("In loop for epull previous coord forces %d : value %4.2f\n", previous_coord, value);
-        }
-
-        //Send this to an expression parser of some sort and obtain derivatives.
-        //then redistribute the forces
+        return;
     }
     else
     {
@@ -689,36 +681,44 @@ static double get_dihedral_angle_coord(PullCoordSpatialData* spatialData)
     return sign * phi;
 }
 
-/* Calculates pull->coord[coord_ind].spatialData.value for meta pull coordinates
+/**
+ * Calculates pull->coord[coord_ind].spatialData.value for meta pull coordinates
  * This requires the values of the pull coordinates of lower indices to be set
+ * @param pull
+ * @param coord_ind
+ * @return
  */
 static double get_meta_pull_value(struct pull_t* pull, int coord_ind)
 {
-    printf("In loop for epull meta");
-    double result = 0;
-    double value = 0;
-    /*try
+    double result                     = 0;
+    double previous_values[coord_ind] = {};
+    try
     {
 
         mu::Parser p;
-        p.DefineVar("x", &value);
-        p.SetExpr("sin(10*x)");*/
-        for (int previous_coord = 0; previous_coord < coord_ind; previous_coord++)
+        for (int previous_coord_ind = 0; previous_coord_ind < coord_ind; previous_coord_ind++)
         {
-            pull_coord_work_t* pre_pcrd = &pull->coord[previous_coord];
+            pull_coord_work_t*    pre_pcrd        = &pull->coord[previous_coord_ind];
             PullCoordSpatialData& pre_spatialData = pre_pcrd->spatialData;
-            value = pre_spatialData.value;
-            //result += p.Eval();
-            result += value*value;
-            printf("In loop for epull previous coord %d: value %4.2f, result %4.2f\n",
-                   previous_coord, value, result);
+            previous_values[previous_coord_ind]   = pre_spatialData.value;
+            std::string variable_name             = std::to_string(previous_coord_ind);
+            variable_name                         = "x" + variable_name;
+            p.DefineVar(variable_name, &previous_values[previous_coord_ind]);
         }
-    /*}
-    catch (mu::Parser::exception_type &e)
+        // TODO maybe set expression before time-stepping to improve performance
+        p.SetExpr("sin(x0)");
+        result = p.Eval();
+    }
+    catch (mu::Parser::exception_type& e)
     {
-        // std::cout << e.GetMsg() << std::endl;
-        printf("muParser failed to evaluate expression. %s", e.GetMsg().c_str());
-    }*/
+        gmx_fatal(FARGS, "failed to evaluate expression for meta pull-coord%d %s\n", coord_ind,
+                  e.GetMsg().c_str());
+    }
+    if (debug)
+    {
+        fprintf(debug, "Computed meta pull coordinate %d and got value %4.6f\n",
+                coord_ind, result);
+    }
     return result;
 }
 
@@ -1496,6 +1496,84 @@ static void check_external_potential_registration(const struct pull_t* pull)
     }
 }
 
+/**
+ * Computes the force from a meta coordinate to another coordinate
+ * @param pull
+ * @param meta_coord_ind
+ * @param coord_ind
+ * @return
+ */
+static double compute_force_from_meta_coord(struct pull_t* pull, int meta_coord_ind, int coord_ind)
+{
+    const pull_coord_work_t& meta_pcrd  = pull->coord[meta_coord_ind];
+    const double             epsilon    = 1e-9; // epsilon for numerical differentiation
+    const double             meta_value = meta_pcrd.spatialData.value;
+    pull_coord_work_t&       pre_pcrd   = pull->coord[coord_ind];
+    // Perform numerical differentiation of 1st order
+    pre_pcrd.spatialData.value += epsilon;
+    double meta_value_eps = get_meta_pull_value(pull, meta_coord_ind);
+    double derivative     = (meta_value_eps - meta_value) / epsilon;
+    pre_pcrd.spatialData.value -= epsilon; // reset pull coordinate value
+    double result = meta_pcrd.scalarForce * derivative;
+    //  printf("Distributing force %4.4f for meta coordinate %d to coordinate %d with force %4.4f "
+    //       "Meta value: %4.4f, derivative: %4.4f "
+    //     "Pre-cord-value: %4.4f"
+    //     "\n",
+    //      meta_pcrd.scalarForce, meta_coord_ind, coord_ind, result, meta_value, derivative, pre_pcrd.spatialData.value);
+    if (debug)
+    {
+        fprintf(debug,
+                "Distributing force %4.4f for meta coordinate %d to coordinate %d with force "
+                "%4.4f\n",
+                meta_pcrd.scalarForce, meta_coord_ind, coord_ind, result);
+    }
+    return result;
+}
+
+/**
+ * Applies a force of a meta pull coordinate and distributes it to pull coordinates of lower rank
+ * @param pull
+ * @param coord_index
+ * @param coord_force
+ * @param masses
+ * @param forceWithVirial
+ */
+void apply_meta_pull_coord_force(struct pull_t*        pull,
+                                 int                   coord_index,
+                                 double                coord_force,
+                                 const real*           masses,
+                                 gmx::ForceWithVirial* forceWithVirial)
+{
+    pull_coord_work_t* pcrd;
+    pcrd              = &pull->coord[coord_index];
+    pcrd->scalarForce = coord_force;
+    if (pcrd->params.eGeom == epullgMETA)
+    {
+        for (int previous_coord_index = 0; previous_coord_index < coord_index; previous_coord_index++)
+        {
+            double previous_coord_force =
+                    compute_force_from_meta_coord(pull, coord_index, previous_coord_index);
+            apply_meta_pull_coord_force(pull, previous_coord_index, previous_coord_force, masses,
+                                        forceWithVirial);
+        }
+    }
+    else
+    {
+        // TODO refactor. code duplication with apply_external_pull_coord_force.
+        /* Calculate the forces on the pull groups */
+        PullCoordVectorForces pullCoordForces = calculateVectorForces(*pcrd);
+
+        /* Add the forces for this coordinate to the total virial and force */
+        if (forceWithVirial->computeVirial_ && pull->comm.isMasterRank)
+        {
+            matrix virial = { { 0 } };
+            add_virial_coord(virial, *pcrd, pullCoordForces);
+            forceWithVirial->addVirialContribution(virial);
+        }
+        apply_forces_coord(pull, coord_index, pullCoordForces, masses,
+                           as_rvec_array(forceWithVirial->force_.data()));
+    }
+}
 
 /* Pull takes care of adding the forces of the external potential.
  * The external potential module  has to make sure that the corresponding
@@ -1524,22 +1602,27 @@ void apply_external_pull_coord_force(struct pull_t*        pull,
         GMX_ASSERT(pcrd->bExternalPotentialProviderHasBeenRegistered,
                    "apply_external_pull_coord_force called for an unregistered pull coordinate");
 
-        /* Set the force */
-        pcrd->scalarForce = coord_force;
-
-        /* Calculate the forces on the pull groups */
-        PullCoordVectorForces pullCoordForces = calculateVectorForces(*pcrd);
-
-        /* Add the forces for this coordinate to the total virial and force */
-        if (forceWithVirial->computeVirial_ && pull->comm.isMasterRank)
-        {
-            matrix virial = { { 0 } };
-            add_virial_coord(virial, *pcrd, pullCoordForces);
-            forceWithVirial->addVirialContribution(virial);
+        if (pcrd->params.eGeom == epullgMETA){
+            apply_meta_pull_coord_force(pull, coord_index, coord_force,
+                                        masses, forceWithVirial);
         }
+        else
+        {
+            /* Set the force */
+            pcrd->scalarForce = coord_force;
+            /* Calculate the forces on the pull groups */
+            PullCoordVectorForces pullCoordForces = calculateVectorForces(*pcrd);
 
-        apply_forces_coord(pull, coord_index, pullCoordForces, masses,
-                           as_rvec_array(forceWithVirial->force_.data()));
+            /* Add the forces for this coordinate to the total virial and force */
+            if (forceWithVirial->computeVirial_ && pull->comm.isMasterRank)
+            {
+                matrix virial = { { 0 } };
+                add_virial_coord(virial, *pcrd, pullCoordForces);
+                forceWithVirial->addVirialContribution(virial);
+            }
+            apply_forces_coord(pull, coord_index, pullCoordForces, masses,
+                               as_rvec_array(forceWithVirial->force_.data()));
+        }
     }
 
     pull->numExternalPotentialsStillToBeAppliedThisStep--;
@@ -1601,23 +1684,28 @@ real pull_potential(struct pull_t*        pull,
         rvec*      f             = as_rvec_array(force->force_.data());
         matrix     virial        = { { 0 } };
         const bool computeVirial = (force->computeVirial_ && MASTER(cr));
-        for (size_t c = 0; c < pull->coord.size(); c++)
+        for (size_t coord_index = 0; coord_index < pull->coord.size(); coord_index++)
         {
             pull_coord_work_t* pcrd;
-            pcrd = &pull->coord[c];
-
+            pcrd = &pull->coord[coord_index];
             /* For external potential the force is assumed to be given by an external module by a
                call to apply_pull_coord_external_force */
             if (pcrd->params.eType == epullCONSTRAINT || pcrd->params.eType == epullEXTERNAL)
             {
                 continue;
             }
-
             PullCoordVectorForces pullCoordForces = do_pull_pot_coord(
-                    pull, c, pbc, t, lambda, &V, computeVirial ? virial : nullptr, &dVdl);
-
-            /* Distribute the force over the atoms in the pulled groups */
-            apply_forces_coord(pull, c, pullCoordForces, masses, f);
+                    pull, coord_index, pbc, t, lambda, &V, computeVirial ? virial : nullptr, &dVdl);
+            if (pcrd->params.eGeom == epullgMETA)
+            {
+                apply_meta_pull_coord_force(pull, coord_index, pcrd->scalarForce,
+                                                masses, force);
+            }
+            else
+            {
+                /* Distribute the force over the atoms in the pulled groups */
+                apply_forces_coord(pull, coord_index, pullCoordForces, masses, f);
+            }
         }
 
         if (MASTER(cr))

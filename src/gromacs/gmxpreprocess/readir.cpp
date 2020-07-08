@@ -86,7 +86,7 @@
 #include "gromacs/utility/stringcompare.h"
 #include "gromacs/utility/stringutil.h"
 #include "gromacs/utility/textwriter.h"
-#include "../mdtypes/md_enums.h"
+#include "gromacs/mdtypes/md_enums.h"
 
 #define MAXPTR 254
 #define NOGID 255

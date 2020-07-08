@@ -1741,6 +1741,16 @@ pull-coord2-vec, pull-coord2-k, and so on.
       then defined as the angle between two planes: the plane spanned by the
       the two first vectors and the plane spanned the two last vectors.
 
+   .. mdp-value:: meta
+
+      Transforms pull coordinates of lower indices using a mathematical expression defined by :mdp:`pull-coord1-equation`.
+
+.. mdp:: pull-coord1-equation
+   Equation that to transform pull coordinates of lower indices to a new one.
+   The pull coordinates are referred to as variables in the equation so that pull-coord1's value becomes 'x1',
+   pull-coord2 value becomes 'x2' etc. The mathematical expression are evaluated using muParser.
+   Only relevant if :mdp:`pull-coord1-geometry` is set to :mdp-value:`meta`.
+`
 
 .. mdp:: pull-coord1-groups
 

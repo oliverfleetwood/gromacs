@@ -59,7 +59,7 @@
 #include "gromacs/utility/fatalerror.h"
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
-#include "../mdtypes/md_enums.h"
+#include "gromacs/mdtypes/md_enums.h"
 
 
 static void string2dvec(const char buf[], dvec nums)

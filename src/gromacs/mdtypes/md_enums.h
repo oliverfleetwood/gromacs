@@ -693,7 +693,7 @@ enum
     epullgANGLE,
     epullgDIHEDRAL,
     epullgANGLEAXIS,
-    epullgMETA, 
+    epullgMETA,
     epullgNR,
 };
 //! String for pull groups
