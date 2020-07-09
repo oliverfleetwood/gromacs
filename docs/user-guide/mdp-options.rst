@@ -1743,7 +1743,10 @@ pull-coord2-vec, pull-coord2-k, and so on.
 
    .. mdp-value:: meta
 
-      Transforms pull coordinates of lower indices using a mathematical expression defined by :mdp:`pull-coord1-equation`.
+      Transforms other pull coordinates using a mathematical expression defined by :mdp:`pull-coord1-expression`.
+      Pull coordinates of lower indices can be used as variables to this pull coordinate.
+      Thus, meta pull coordinates and their variables should be defined before any other pull coordinate
+      , and all pull coordinates of lower index must have :mdp:`pull-coord1-k` set to zero.
 
 .. mdp:: pull-coord1-expression
    Mathematical expression to transform pull coordinates of lower indices to a new one.

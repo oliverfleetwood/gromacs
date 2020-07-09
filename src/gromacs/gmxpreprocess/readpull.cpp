@@ -135,13 +135,15 @@ static void process_pull_dim(char* dim_buf, ivec dim, const t_pull_coord* pcrd)
     }
 }
 
-static void init_pull_coord(t_pull_coord* pcrd,
-                            int           coord_index_for_output,
+static void init_pull_coord(pull_params_t* pull,
+                            int            coordNum,
                             char*         dim_buf,
                             const char*   origin_buf,
                             const char*   vec_buf,
                             warninp_t     wi)
 {
+    t_pull_coord* pcrd;
+    pcrd = &pull->coord[coordNum - 1];
     int  m;
     dvec origin, vec;
     char buf[STRLEN];
@@ -163,8 +165,7 @@ static void init_pull_coord(t_pull_coord* pcrd,
             sprintf(buf,
                     "The use of pull type '%s' for pull coordinate %d requires that the name of "
                     "the module providing the potential external is set with the option %s%d%s",
-                    epull_names[pcrd->eType], coord_index_for_output, "pull-coord",
-                    coord_index_for_output, "-potential-provider");
+                    epull_names[pcrd->eType], coordNum, "pull-coord", coordNum, "-potential-provider");
             warning_error(wi, buf);
         }
 
@@ -173,7 +174,7 @@ static void init_pull_coord(t_pull_coord* pcrd,
             sprintf(buf,
                     "The use of pull type '%s' for pull coordinate %d requires that the pull rate "
                     "is zero",
-                    epull_names[pcrd->eType], coord_index_for_output);
+                    epull_names[pcrd->eType], coordNum);
             warning_error(wi, buf);
         }
 
@@ -284,13 +285,30 @@ static void init_pull_coord(t_pull_coord* pcrd,
     if (pcrd->eGeom == epullgMETA)
     {
         /*Validate the mathematical expression to epullgMETA*/
-        if (sizeof(pcrd->expression) == 0)
+        if (pcrd->expression == nullptr || sizeof(pcrd->expression) == 0)
         {
             gmx_fatal(FARGS,
                       "pull-coord%d-expression not set for pull coordinate of geometry 'meta'",
-                      coord_index_for_output);
+                      coordNum);
         }
-        /*TODO make sure that the kappa of all previous pull coords is 0*/
+        /* make sure that the kappa of all previous pull coords is 0*/
+        for (int previous_coord_index = 0; previous_coord_index < coordNum - 1; previous_coord_index++)
+        {
+            t_pull_coord* previous_pcrd = &pull->coord[previous_coord_index];
+            if (previous_pcrd->k > 0)
+            {
+                gmx_fatal(FARGS,
+                          "pull-coord%d-k not must be set to zero "
+                          "since pull-coord%d-geometry=meta.\n Met"
+                          "Meta coordinates and their variables must occur first. "
+                          "Change the order of the pull coordinates if "
+                          "pull-coord%d does not depend on pull-coord%d",
+                          previous_coord_index + 1,
+                          coordNum,
+                          previous_coord_index + 1,
+                          coordNum);
+            }
+        }
     }
 
     for (m = 0; m < DIM; m++)
@@ -436,7 +454,7 @@ std::vector<std::string> read_pullparams(std::vector<t_inpfile>* inp, pull_param
         pcrd->kB = get_ereal(inp, buf, pcrd->k, wi);
 
         /* Initialize the pull coordinate */
-        init_pull_coord(pcrd, coordNum, dim_buf, origin_buf, vec_buf, wi);
+        init_pull_coord(pull, coordNum, dim_buf, origin_buf, vec_buf, wi);
     }
 
     return pullGroups;

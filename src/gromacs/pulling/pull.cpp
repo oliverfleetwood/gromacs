@@ -1504,7 +1504,9 @@ static void check_external_potential_registration(const struct pull_t* pull)
 static double compute_force_from_meta_coord(struct pull_t* pull, int meta_coord_ind, int coord_ind)
 {
     const pull_coord_work_t& meta_pcrd  = pull->coord[meta_coord_ind];
-    const double             epsilon    = 1e-9; // epsilon for numerical differentiation
+    // epsilon for numerical differentiation.
+    // TODO make it possible to override epsilon with mdp option or environment variable etc.
+    const double             epsilon    = 1e-9;
     const double             meta_value = meta_pcrd.spatialData.value;
     pull_coord_work_t&       pre_pcrd   = pull->coord[coord_ind];
     // Perform numerical differentiation of 1st order
@@ -1536,13 +1538,13 @@ static double compute_force_from_meta_coord(struct pull_t* pull, int meta_coord_
  * @param masses
  * @param forceWithVirial
  */
-void apply_meta_pull_coord_force(struct pull_t*        pull,
+static void apply_meta_pull_coord_force(struct pull_t*        pull,
                                  int                   coord_index,
                                  double                coord_force,
                                  const real*           masses,
                                  gmx::ForceWithVirial* forceWithVirial)
 {
-    if(coord_force < 1e-9)
+    if (coord_force < 1e-9)
     {
         // the force is effectively 0. Don't proceed and distribute it recursively
         return;
@@ -1554,7 +1556,18 @@ void apply_meta_pull_coord_force(struct pull_t*        pull,
     {
         for (int previous_coord_index = 0; previous_coord_index < coord_index; previous_coord_index++)
         {
-            // TODO only compute force if the variable is dependent on the pull coordinate
+            pull_coord_work_t* previous_pcrd = &pull->coord[previous_coord_index];
+            if (previous_pcrd->params.eGeom == epullgMETA)
+            {
+                /*
+                 * We can have a meta pull coordinate depend on another sub-meta pull coordinate
+                 * as long as it has force constant set to 0.
+                 * The real non-meta pull coordinates will have the force distributed directly from
+                 * the highest ranked meta coordinate with a force constant != 0 by numerical
+                 * differentiation. Here we avoid redistributing the force twice (hopefully).
+                 */
+                return;
+            }
             double previous_coord_force =
                     compute_force_from_meta_coord(pull, coord_index, previous_coord_index);
             apply_meta_pull_coord_force(pull, previous_coord_index, previous_coord_force, masses,
