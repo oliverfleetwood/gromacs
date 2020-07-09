@@ -60,6 +60,7 @@
 #include "gromacs/utility/futil.h"
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/mdtypes/md_enums.h"
+#include "../mdtypes/md_enums.h"
 
 
 static void string2dvec(const char buf[], dvec nums)
@@ -280,6 +281,18 @@ static void init_pull_coord(t_pull_coord* pcrd,
             warning(wi, buf);
         }
     }
+    if (pcrd->eGeom == epullgMETA)
+    {
+        /*Validate the mathematical expression to epullgMETA*/
+        if (sizeof(pcrd->expression) == 0)
+        {
+            gmx_fatal(FARGS,
+                      "pull-coord%d-expression not set for pull coordinate of geometry 'meta'",
+                      coord_index_for_output);
+        }
+        /*TODO make sure that the kappa of all previous pull coords is 0*/
+    }
+
     for (m = 0; m < DIM; m++)
     {
         pcrd->origin[m] = origin[m];
@@ -291,7 +304,7 @@ std::vector<std::string> read_pullparams(std::vector<t_inpfile>* inp, pull_param
 {
     int  nscan, idum;
     char buf[STRLEN];
-    char provider[STRLEN], groups[STRLEN], dim_buf[STRLEN];
+    char provider[STRLEN], groups[STRLEN], dim_buf[STRLEN], expression[STRLEN];
     char wbuf[STRLEN], origin_buf[STRLEN], vec_buf[STRLEN];
 
     t_pull_group* pgrp;
@@ -361,6 +374,9 @@ std::vector<std::string> read_pullparams(std::vector<t_inpfile>* inp, pull_param
         sprintf(buf, "pull-coord%d-potential-provider", coordNum);
         setStringEntry(inp, buf, provider, "");
         pcrd->externalPotentialProvider = gmx_strdup(provider);
+        sprintf(buf, "pull-coord%d-expression", coordNum);
+        setStringEntry(inp, buf, expression, "");
+        pcrd->expression = gmx_strdup(expression);
         sprintf(buf, "pull-coord%d-geometry", coordNum);
         pcrd->eGeom = get_eeenum(inp, buf, epullg_names, wi);
         sprintf(buf, "pull-coord%d-groups", coordNum);

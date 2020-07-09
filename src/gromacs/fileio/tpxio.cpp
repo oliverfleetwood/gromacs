@@ -79,6 +79,8 @@
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/snprintf.h"
 #include "gromacs/utility/txtdump.h"
+#include "../mdtypes/md_enums.h"
+#include "../mdtypes/pull_params.h"
 
 #define TPX_TAG_RELEASE "release"
 
@@ -132,7 +134,8 @@ enum tpxv
     tpxv_AddSizeField, /**< Added field with information about the size of the serialized tpr file in bytes, excluding the header */
     tpxv_StoreNonBondedInteractionExclusionGroup, /**< Store the non bonded interaction exclusion group in the topology */
     tpxv_VSite1,                                  /**< Added 1 type virtual site */
-    tpxv_Count                                    /**< the total number of tpxv versions */
+    tpxv_MetaPullCoord,                               /**< Support for meta pull coordinates */
+    tpxv_Count,                                    /**< the total number of tpxv versions */
 };
 
 /*! \brief Version number of the file format written to run input
@@ -341,6 +344,28 @@ static void do_pull_coord(gmx::ISerializer* serializer,
             pcrd->ngroup = 0;
         }
         serializer->doIvec(&pcrd->dim);
+        serializer->doInt(&pcrd->eType);
+        if (file_version >= tpxv_MetaPullCoord && pcrd->eGeom == epullgMETA)
+        {
+            std::string buf;
+            if (serializer->reading())
+            {
+                serializer->doString(&buf);
+                pcrd->expression = gmx_strdup(buf.c_str());
+            }
+            else
+            {
+                buf = pcrd->expression;
+                serializer->doString(&buf);
+            }
+        }
+        else
+        {
+            if (serializer->reading())
+            {
+                pcrd->expression = nullptr;
+            }
+        }
     }
     else
     {

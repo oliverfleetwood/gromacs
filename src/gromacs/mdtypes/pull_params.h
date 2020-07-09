@@ -75,6 +75,7 @@ typedef struct
 {
     int      eType; /**< The pull type: umbrella, constraint, ... */
     char*    externalPotentialProvider; /**< Name of the module providing the external potential, only used with eType==epullEXTERNAL */
+    char*    expression; /**< Mathematical expression evaluated by the pull code for meta coordinates */
     int      eGeom;                       /**< The pull geometry */
     int      ngroup;                      /**< The number of groups, depends on eGeom */
     int      group[c_pullCoordNgroupMax]; /**< The pull groups: indices into the group arrays in pull_t and pull_params_t, ngroup indices are used */
@@ -103,7 +104,6 @@ typedef struct pull_params_t
     int      nstfout;                 /**< Output interval for pull f */
     bool     bXOutAverage; /**< Write the average coordinate during the output interval */
     bool     bFOutAverage; /**< Write the average force during the output interval */
-
     t_pull_group* group; /**< groups to pull/restrain/etc/ */
     t_pull_coord* coord; /**< the pull coordinates */
 } pull_params_t;

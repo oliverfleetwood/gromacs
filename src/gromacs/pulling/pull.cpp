@@ -48,6 +48,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <string>
 
 #include "gromacs/commandline/filenm.h"
 #include "gromacs/domdec/domdec_struct.h"
@@ -692,32 +693,34 @@ static double get_meta_pull_value(struct pull_t* pull, int coord_ind)
 {
     double result                     = 0;
     double previous_values[coord_ind] = {};
+    pull_coord_work_t*    coord        = &pull->coord[coord_ind];
+    char* expr = coord->params.expression;
+    std::string expression(expr);
     try
     {
-
         mu::Parser p;
+        p.SetExpr(expression);
         for (int previous_coord_ind = 0; previous_coord_ind < coord_ind; previous_coord_ind++)
         {
             pull_coord_work_t*    pre_pcrd        = &pull->coord[previous_coord_ind];
             PullCoordSpatialData& pre_spatialData = pre_pcrd->spatialData;
             previous_values[previous_coord_ind]   = pre_spatialData.value;
-            std::string variable_name             = std::to_string(previous_coord_ind);
+            std::string variable_name             = std::to_string(previous_coord_ind + 1);
             variable_name                         = "x" + variable_name;
             p.DefineVar(variable_name, &previous_values[previous_coord_ind]);
         }
         // TODO maybe set expression before time-stepping to improve performance
-        p.SetExpr("sin(x0)");
         result = p.Eval();
     }
     catch (mu::Parser::exception_type& e)
     {
-        gmx_fatal(FARGS, "failed to evaluate expression for meta pull-coord%d %s\n", coord_ind,
+        gmx_fatal(FARGS, "failed to evaluate expression for meta pull-coord%d: %s\n", coord_ind + 1,
                   e.GetMsg().c_str());
     }
     if (debug)
     {
         fprintf(debug, "Computed meta pull coordinate %d and got value %4.6f\n",
-                coord_ind, result);
+                coord_ind + 1, result);
     }
     return result;
 }
@@ -1544,6 +1547,11 @@ void apply_meta_pull_coord_force(struct pull_t*        pull,
                                  const real*           masses,
                                  gmx::ForceWithVirial* forceWithVirial)
 {
+    if(coord_force < 1e-9)
+    {
+        // the force is effectively 0. Don't proceed and distribute it recursively
+        return;
+    }
     pull_coord_work_t* pcrd;
     pcrd              = &pull->coord[coord_index];
     pcrd->scalarForce = coord_force;
@@ -1551,6 +1559,7 @@ void apply_meta_pull_coord_force(struct pull_t*        pull,
     {
         for (int previous_coord_index = 0; previous_coord_index < coord_index; previous_coord_index++)
         {
+            // TODO only compute force if the variable is dependent on the pull coordinate
             double previous_coord_force =
                     compute_force_from_meta_coord(pull, coord_index, previous_coord_index);
             apply_meta_pull_coord_force(pull, previous_coord_index, previous_coord_force, masses,
