@@ -692,25 +692,20 @@ static double get_dihedral_angle_coord(PullCoordSpatialData* spatialData)
 static double get_meta_pull_value(struct pull_t* pull, int coord_ind)
 {
     double result                     = 0;
-    double previous_values[coord_ind] = {};
     pull_coord_work_t*    coord        = &pull->coord[coord_ind];
-    char* expr = coord->params.expression;
-    std::string expression(expr);
     try
     {
-        mu::Parser p;
-        p.SetExpr(expression);
+        if (!coord->expressionParser.isInitialized())
+        {
+            coord->expressionParser.initialize(coord_ind);
+        }
         for (int previous_coord_ind = 0; previous_coord_ind < coord_ind; previous_coord_ind++)
         {
             pull_coord_work_t*    pre_pcrd        = &pull->coord[previous_coord_ind];
             PullCoordSpatialData& pre_spatialData = pre_pcrd->spatialData;
-            previous_values[previous_coord_ind]   = pre_spatialData.value;
-            std::string variable_name             = std::to_string(previous_coord_ind + 1);
-            variable_name                         = "x" + variable_name;
-            p.DefineVar(variable_name, &previous_values[previous_coord_ind]);
+            coord->expressionParser.setVariable(previous_coord_ind, pre_spatialData.value);
         }
-        // TODO maybe set expression before time-stepping to improve performance
-        result = p.Eval();
+        result = coord->expressionParser.eval();
     }
     catch (mu::Parser::exception_type& e)
     {
