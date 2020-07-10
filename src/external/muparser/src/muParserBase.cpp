@@ -311,7 +311,7 @@ namespace mu
 	//---------------------------------------------------------------------------
 	/** \brief Add a value parsing function.
 
-		When parsing an expression muParser tries to detect values in the expression
+		When parsing an expression muparser tries to detect values in the expression
 		string using different valident callbacks. Thus it's possible to parse
 		for hex values, binary values and floating point values.
 	*/

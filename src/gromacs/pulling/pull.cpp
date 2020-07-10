@@ -1503,23 +1503,18 @@ static void check_external_potential_registration(const struct pull_t* pull)
  */
 static double compute_force_from_meta_coord(struct pull_t* pull, int meta_coord_ind, int coord_ind)
 {
-    const pull_coord_work_t& meta_pcrd  = pull->coord[meta_coord_ind];
+    const pull_coord_work_t& meta_pcrd = pull->coord[meta_coord_ind];
     // epsilon for numerical differentiation.
     // TODO make it possible to override epsilon with mdp option or environment variable etc.
-    const double             epsilon    = 1e-9;
-    const double             meta_value = meta_pcrd.spatialData.value;
-    pull_coord_work_t&       pre_pcrd   = pull->coord[coord_ind];
+    const double       epsilon    = 1e-9;
+    const double       meta_value = meta_pcrd.spatialData.value;
+    pull_coord_work_t& pre_pcrd   = pull->coord[coord_ind];
     // Perform numerical differentiation of 1st order
     pre_pcrd.spatialData.value += epsilon;
     double meta_value_eps = get_meta_pull_value(pull, meta_coord_ind);
     double derivative     = (meta_value_eps - meta_value) / epsilon;
     pre_pcrd.spatialData.value -= epsilon; // reset pull coordinate value
     double result = meta_pcrd.scalarForce * derivative;
-    //  printf("Distributing force %4.4f for meta coordinate %d to coordinate %d with force %4.4f "
-    //       "Meta value: %4.4f, derivative: %4.4f "
-    //     "Pre-cord-value: %4.4f"
-    //     "\n",
-    //      meta_pcrd.scalarForce, meta_coord_ind, coord_ind, result, meta_value, derivative, pre_pcrd.spatialData.value);
     if (debug)
     {
         fprintf(debug,
@@ -1531,6 +1526,37 @@ static double compute_force_from_meta_coord(struct pull_t* pull, int meta_coord_
 }
 
 /**
+ * Applies a force of any non-meta pull coordinate
+ * @param pull
+ * @param coord_index
+ * @param coord_force
+ * @param masses
+ * @param forceWithVirial
+ */
+static void apply_default_pull_coord_force(struct pull_t*        pull,
+                                           int                   coord_index,
+                                           double                coord_force,
+                                           const real*           masses,
+                                           gmx::ForceWithVirial* forceWithVirial)
+{
+    pull_coord_work_t* pcrd = &pull->coord[coord_index];
+    /* Set the force */
+    pcrd->scalarForce = coord_force;
+    /* Calculate the forces on the pull groups */
+    PullCoordVectorForces pullCoordForces = calculateVectorForces(*pcrd);
+
+    /* Add the forces for this coordinate to the total virial and force */
+    if (forceWithVirial->computeVirial_ && pull->comm.isMasterRank)
+    {
+        matrix virial = { { 0 } };
+        add_virial_coord(virial, *pcrd, pullCoordForces);
+        forceWithVirial->addVirialContribution(virial);
+    }
+    apply_forces_coord(pull, coord_index, pullCoordForces, masses,
+                       as_rvec_array(forceWithVirial->force_.data()));
+}
+
+/**
  * Applies a force of a meta pull coordinate and distributes it to pull coordinates of lower rank
  * @param pull
  * @param coord_index
@@ -1539,10 +1565,10 @@ static double compute_force_from_meta_coord(struct pull_t* pull, int meta_coord_
  * @param forceWithVirial
  */
 static void apply_meta_pull_coord_force(struct pull_t*        pull,
-                                 int                   coord_index,
-                                 double                coord_force,
-                                 const real*           masses,
-                                 gmx::ForceWithVirial* forceWithVirial)
+                                        int                   coord_index,
+                                        double                coord_force,
+                                        const real*           masses,
+                                        gmx::ForceWithVirial* forceWithVirial)
 {
     if (coord_force < 1e-9)
     {
@@ -1550,10 +1576,10 @@ static void apply_meta_pull_coord_force(struct pull_t*        pull,
         return;
     }
     pull_coord_work_t* pcrd;
-    pcrd              = &pull->coord[coord_index];
-    pcrd->scalarForce = coord_force;
+    pcrd = &pull->coord[coord_index];
     if (pcrd->params.eGeom == epullgMETA)
     {
+        pcrd->scalarForce = coord_force;
         for (int previous_coord_index = 0; previous_coord_index < coord_index; previous_coord_index++)
         {
             pull_coord_work_t* previous_pcrd = &pull->coord[previous_coord_index];
@@ -1576,19 +1602,7 @@ static void apply_meta_pull_coord_force(struct pull_t*        pull,
     }
     else
     {
-        // TODO refactor. code duplication with apply_external_pull_coord_force.
-        /* Calculate the forces on the pull groups */
-        PullCoordVectorForces pullCoordForces = calculateVectorForces(*pcrd);
-
-        /* Add the forces for this coordinate to the total virial and force */
-        if (forceWithVirial->computeVirial_ && pull->comm.isMasterRank)
-        {
-            matrix virial = { { 0 } };
-            add_virial_coord(virial, *pcrd, pullCoordForces);
-            forceWithVirial->addVirialContribution(virial);
-        }
-        apply_forces_coord(pull, coord_index, pullCoordForces, masses,
-                           as_rvec_array(forceWithVirial->force_.data()));
+        apply_default_pull_coord_force(pull, coord_index, coord_force, masses, forceWithVirial);
     }
 }
 
@@ -1619,29 +1633,15 @@ void apply_external_pull_coord_force(struct pull_t*        pull,
         GMX_ASSERT(pcrd->bExternalPotentialProviderHasBeenRegistered,
                    "apply_external_pull_coord_force called for an unregistered pull coordinate");
 
-        if (pcrd->params.eGeom == epullgMETA){
-            apply_meta_pull_coord_force(pull, coord_index, coord_force,
-                                        masses, forceWithVirial);
+        if (pcrd->params.eGeom == epullgMETA)
+        {
+            apply_meta_pull_coord_force(pull, coord_index, coord_force, masses, forceWithVirial);
         }
         else
         {
-            /* Set the force */
-            pcrd->scalarForce = coord_force;
-            /* Calculate the forces on the pull groups */
-            PullCoordVectorForces pullCoordForces = calculateVectorForces(*pcrd);
-
-            /* Add the forces for this coordinate to the total virial and force */
-            if (forceWithVirial->computeVirial_ && pull->comm.isMasterRank)
-            {
-                matrix virial = { { 0 } };
-                add_virial_coord(virial, *pcrd, pullCoordForces);
-                forceWithVirial->addVirialContribution(virial);
-            }
-            apply_forces_coord(pull, coord_index, pullCoordForces, masses,
-                               as_rvec_array(forceWithVirial->force_.data()));
+            apply_default_pull_coord_force(pull, coord_index, coord_force, masses, forceWithVirial);
         }
     }
-
     pull->numExternalPotentialsStillToBeAppliedThisStep--;
 }
 

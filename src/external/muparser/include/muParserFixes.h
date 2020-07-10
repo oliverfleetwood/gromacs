@@ -61,9 +61,9 @@
 	MUPARSER_LOCAL is used for non-api symbols.
 */
 
-#ifndef MUPARSER_STATIC /* defined if muParser is compiled as a DLL */
+#ifndef MUPARSER_STATIC /* defined if muparser is compiled as a DLL */
 
-	#ifdef MUPARSERLIB_EXPORTS /* defined if we are building the muParser DLL (instead of using it) */
+	#ifdef MUPARSERLIB_EXPORTS /* defined if we are building the muparser DLL (instead of using it) */
 		#define API_EXPORT_CXX MUPARSER_HELPER_DLL_EXPORT
 	#else
 		#define API_EXPORT_CXX MUPARSER_HELPER_DLL_IMPORT

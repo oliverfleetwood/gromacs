@@ -346,7 +346,7 @@ namespace mu
 		}
 
 		//---------------------------------------------------------------------------------------------
-		/** \brief Check muParser name restriction enforcement. */
+		/** \brief Check muparser name restriction enforcement. */
 		int ParserTester::TestNames()
 		{
 			int  iStat = 0,

@@ -44,7 +44,7 @@ namespace mu
 	/** \brief Mathematical expressions parser.
 
 	  This version of the parser handles only integer numbers. It disables the built in operators thus it is
-	  slower than muParser. Integer values are stored in the double value_type and converted if needed.
+	  slower than muparser. Integer values are stored in the double value_type and converted if needed.
 	*/
 	class ParserInt : public ParserBase
 	{

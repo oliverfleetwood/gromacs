@@ -57,6 +57,7 @@
 #include "testutils/refdata.h"
 #include "testutils/testasserts.h"
 #include "testutils/testfilemanager.h"
+#include "../../mdtypes/md_enums.h"
 
 namespace gmx
 {
@@ -153,6 +154,38 @@ protected:
                 minDist2 -= square(box[d][XX]);
             }
             EXPECT_REAL_EQ_TOL(0.25 * minDist2, max_pull_distance2(&pcrd, &pbc), defaultRealTolerance());
+        }
+
+        {
+            // Meta pull coordinate test
+            // Create standard pull coordinate
+            t_pull_coord params;
+            params.eGeom = epullgDIST;
+            pull_coord_work_t x1_pcrd(params);
+            // Create meta pull coordinate
+            params.eGeom      = epullgMETA;
+            params.expression = "x1^2 + 3";
+            pull_coord_work_t meta_pcrd(params);
+            pcrd.expressionParser.init();
+
+            pull_t pull();
+            pull.coord = { x1_pcrd, meta_pcrd };
+            for (double v = 0; v < 10; v++)
+            {
+                // meta pull coord value
+                x1_pcrd.spatialData.value = v;
+                get_pull_coord_distance(&pull, 1, pbc);
+                EXPECT_DOUBLE_EQ(v * v + 3, meta_pcrd.spatialData.value)
+                        << "Meta coordinate value does not match the expected expression.";
+
+                // force and derivative
+                double meta_force     = v + 0.5;
+                meta_pcrd.scalarForce = meta_force;
+                double x1_force = compute_force_from_meta_coord(&pull, 1, 0);
+                EXPECT_DOUBLE_EQ(2 * v * meta_force, x1_force);
+                        << "Force distributed from meta coordinate "
+                           "should be the derivative times the meta force.";
+            }
         }
     }
 };
