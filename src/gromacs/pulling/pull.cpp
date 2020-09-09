@@ -1494,14 +1494,7 @@ static void check_external_potential_registration(const struct pull_t* pull)
     }
 }
 
-/**
- * Computes the force from a meta coordinate to another coordinate
- * @param pull
- * @param meta_coord_ind
- * @param coord_ind
- * @return
- */
-static double compute_force_from_meta_coord(struct pull_t* pull, int meta_coord_ind, int coord_ind)
+double compute_force_from_meta_coord(struct pull_t* pull, int meta_coord_ind, int coord_ind)
 {
     const pull_coord_work_t& meta_pcrd = pull->coord[meta_coord_ind];
     // epsilon for numerical differentiation.

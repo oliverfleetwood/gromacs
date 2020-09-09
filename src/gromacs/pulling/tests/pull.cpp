@@ -164,9 +164,9 @@ protected:
             pull_coord_work_t x1_pcrd(params);
             // Create meta pull coordinate
             params.eGeom      = epullgMETA;
-            params.expression = "x1^2 + 3";
+            params.expression = "x1^2 + 3".c_str();
             pull_coord_work_t meta_pcrd(params);
-            pcrd.expressionParser.init();
+            meta_pcrd.expressionParser.initialize(1);
 
             pull_t pull();
             pull.coord = { x1_pcrd, meta_pcrd };
@@ -174,7 +174,7 @@ protected:
             {
                 // meta pull coord value
                 x1_pcrd.spatialData.value = v;
-                get_pull_coord_distance(&pull, 1, pbc);
+                get_pull_coord_value(&pull, 1, pbc);
                 EXPECT_DOUBLE_EQ(v * v + 3, meta_pcrd.spatialData.value)
                         << "Meta coordinate value does not match the expected expression.";
 
@@ -182,7 +182,7 @@ protected:
                 double meta_force     = v + 0.5;
                 meta_pcrd.scalarForce = meta_force;
                 double x1_force = compute_force_from_meta_coord(&pull, 1, 0);
-                EXPECT_DOUBLE_EQ(2 * v * meta_force, x1_force);
+                EXPECT_DOUBLE_EQ(2 * v * meta_force, x1_force)
                         << "Force distributed from meta coordinate "
                            "should be the derivative times the meta force.";
             }

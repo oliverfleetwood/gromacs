@@ -357,6 +357,14 @@ bool pull_have_constraint(const pull_params_t* pullParameters);
  */
 real max_pull_distance2(const pull_coord_work_t* pcrd, const t_pbc* pbc);
 
+/*! \brief Computes the force from a meta coordinate to another coordinate
+ * \param pull
+ * \param meta_coord_ind
+ * \param coord_ind
+ * \return the force
+ */
+static double compute_force_from_meta_coord(struct pull_t* pull, int meta_coord_ind, int coord_ind);
+
 /*! \brief Sets the previous step COM in pull to the current COM and updates the pull_com_prev_step in the state
  *
  * \param[in]   pull  The COM pull force calculation data structure
