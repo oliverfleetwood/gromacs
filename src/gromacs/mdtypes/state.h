@@ -72,7 +72,10 @@ struct t_inputrec;
 namespace gmx
 {
 struct AwhHistory;
-}
+enum class CheckpointDataOperation;
+template<CheckpointDataOperation operation>
+class CheckpointData;
+} // namespace gmx
 
 //! Convenience alias for until all is moved in the gmx namespace
 template<class T>
@@ -176,6 +179,14 @@ public:
      * before we enter the MD loop should compute these quantities
      * fresh, or not. */
     bool hasReadEkinState;
+
+    /*!
+     * \brief Allows to read and write checkpoint within modular simulator
+     * \tparam operation  Whether we're reading or writing
+     * \param checkpointData  The CheckpointData object
+     */
+    template<gmx::CheckpointDataOperation operation>
+    void doCheckpoint(gmx::CheckpointData<operation> checkpointData);
 };
 
 /*! \brief Free-energy sampling history struct
@@ -340,6 +351,15 @@ static inline gmx::ArrayRef<const gmx::RVec> positionsFromStatePointer(const t_s
         return {};
     }
 };
+
+/*! \brief Prints the current lambda state to the log file.
+ *
+ * \param[in] fplog  The log file. If fplog == nullptr there will be no output.
+ * \param[in] lambda The array of lambda values.
+ * \param[in] isInitialOutput Whether this output is the initial lambda state or not.
+ */
+void printLambdaStateToLog(FILE* fplog, gmx::ArrayRef<real> lambda, bool isInitialOutput);
+
 
 /*! \brief Fills fep_state, lambda, and lam0 if needed
  *

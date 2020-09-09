@@ -40,6 +40,12 @@
  *
  * \author Pascal Merz <pascal.merz@me.com>
  * \ingroup module_modularsimulator
+ *
+ * This header is currently the only part of the modular simulator module which is exposed.
+ * Mdrunner creates an object of type ModularSimulator (via SimulatorBuilder), and calls its
+ * run() method. Mdrunner also calls checkUseModularSimulator(...), which in turns calls a
+ * static method of ModularSimulator. This could easily become a free function if this requires
+ * more exposure than otherwise necessary.
  */
 #ifndef GROMACS_MODULARSIMULATOR_MODULARSIMULATOR_H
 #define GROMACS_MODULARSIMULATOR_MODULARSIMULATOR_H
@@ -50,6 +56,8 @@ struct t_fcdata;
 
 namespace gmx
 {
+class ModularSimulatorAlgorithmBuilder;
+class ReadCheckpointDataHolder;
 
 /*! \libinternal
  * \ingroup module_modularsimulator
@@ -81,24 +89,22 @@ public:
     // Only builder can construct
     friend class SimulatorBuilder;
 
-    // Allow algorithm builder to access ISimulator data
-    friend class ModularSimulatorAlgorithmBuilder;
-
 private:
     //! Constructor
-    template<typename... Args>
-    explicit ModularSimulator(Args&&... args);
+    ModularSimulator(std::unique_ptr<LegacySimulatorData>      legacySimulatorData,
+                     std::unique_ptr<ReadCheckpointDataHolder> checkpointDataHolder);
+
+    //! Populate algorithm builder with elements
+    void addIntegrationElements(ModularSimulatorAlgorithmBuilder* builder);
 
     //! Check for disabled functionality (during construction time)
     void checkInputForDisabledFunctionality();
-};
 
-//! Constructor implementation (here to avoid template-related linker problems)
-template<typename... Args>
-ModularSimulator::ModularSimulator(Args&&... args) : ISimulator(std::forward<Args>(args)...)
-{
-    checkInputForDisabledFunctionality();
-}
+    //! Pointer to legacy simulator data (TODO: Can we avoid using unique_ptr? #3628)
+    std::unique_ptr<LegacySimulatorData> legacySimulatorData_;
+    //! Input checkpoint data
+    std::unique_ptr<ReadCheckpointDataHolder> checkpointDataHolder_;
+};
 
 /*!
  * \brief Whether or not to use the ModularSimulator

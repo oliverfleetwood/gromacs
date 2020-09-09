@@ -47,8 +47,8 @@
 #include <memory>
 
 #include "gromacs/ewald/pme.h"
-#include "gromacs/gpu_utils/gpu_utils.h"
 #include "gromacs/hardware/detecthardware.h"
+#include "gromacs/hardware/device_management.h"
 #include "gromacs/hardware/hw_info.h"
 #include "gromacs/utility/basenetwork.h"
 #include "gromacs/utility/exceptions.h"
@@ -105,16 +105,13 @@ void PmeTestEnvironment::SetUp()
         return;
     }
     // Constructing contexts for all compatible GPUs - will be empty on non-GPU builds
-    for (int gpuIndex : getCompatibleGpus(hardwareInfo_->gpu_info))
+    for (const DeviceInformation& compatibleDeviceInfo : getCompatibleDevices(hardwareInfo_->deviceInfoList))
     {
-        const DeviceInformation* deviceInfo = getDeviceInfo(hardwareInfo_->gpu_info, gpuIndex);
-        init_gpu(deviceInfo);
-
-        char stmp[200] = {};
-        get_gpu_device_info_string(stmp, hardwareInfo_->gpu_info, gpuIndex);
-        std::string description = "(GPU " + std::string(stmp) + ") ";
+        setActiveDevice(compatibleDeviceInfo);
+        std::string deviceDescription = getDeviceInformationString(compatibleDeviceInfo);
+        std::string description       = "(GPU " + deviceDescription + ") ";
         hardwareContexts_.emplace_back(std::make_unique<TestHardwareContext>(
-                CodePath::GPU, description.c_str(), *deviceInfo));
+                CodePath::GPU, description.c_str(), compatibleDeviceInfo));
     }
 }
 

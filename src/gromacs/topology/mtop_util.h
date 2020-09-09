@@ -58,12 +58,6 @@ struct t_symtab;
 // and should be replaced by versions taking const gmx_mtop & when
 // their callers are refactored similarly.
 
-/* Should be called after generating or reading mtop,
- * to set some compute intesive variables to avoid
- * N^2 operations later on.
- */
-void gmx_mtop_finalize(gmx_mtop_t* mtop);
-
 /* Counts the number of atoms of each type. State should be 0 for
  * state A and 1 for state B types.  typecount should have at
  * least mtop->ffparams.atnr elements.
@@ -283,11 +277,13 @@ std::vector<int> get_atom_index(const gmx_mtop_t* mtop);
  */
 void convertAtomsToMtop(t_symtab* symtab, char** name, t_atoms* atoms, gmx_mtop_t* mtop);
 
-/*! \brief Checks if the non-bonded FEP should be performed in this run.
- *
- * \param[in]  mtop  Molecular topology.
- * \returns Whether FEP non-bonded is requested.
- */
-bool haveFepPerturbedNBInteractions(const gmx_mtop_t* mtop);
+//! Checks and returns whether non-bonded interactions are perturbed for free-energy calculations
+bool haveFepPerturbedNBInteractions(const gmx_mtop_t& mtop);
+
+//! Checks whether masses are perturbed for free-energy calculations
+bool haveFepPerturbedMasses(const gmx_mtop_t& mtop);
+
+//! Checks whether constraints are perturbed for free-energy calculations
+bool havePerturbedConstraints(const gmx_mtop_t& mtop);
 
 #endif

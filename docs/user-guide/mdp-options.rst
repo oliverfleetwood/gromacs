@@ -2053,8 +2053,14 @@ AWH adaptive biasing
 
    .. mdp-value:: pull
 
-      The module providing the reaction coordinate for this dimension.
-      Currently AWH can only act on pull coordinates.
+      The pull module is providing the reaction coordinate for this dimension.
+
+   .. mdp-value:: fep-lambda
+
+      The free energy lambda state is the reaction coordinate for this dimension.
+      The lambda states to use are specified by :mdp:`fep-lambdas`, :mdp:`vdw-lambdas`,
+      :mdp:`coul-lambdas` etc. This is not compatible with delta-lambda. It also requires
+      calc-lambda-neighbors to be -1.
 
 .. mdp:: awh1-dim1-coord-index
 
@@ -2086,7 +2092,7 @@ AWH adaptive biasing
 
 .. mdp:: awh1-dim1-diffusion
 
-   (10\ :sup:`-5`) [nm\ :sup:`2`/ps] or [rad\ :sup:`2`/ps]
+   (10\ :sup:`-5`) [nm\ :sup:`2`/ps], [rad\ :sup:`2`/ps] or [ps\ :sup:`-1`]
    Estimated diffusion constant for this coordinate dimension determining the initial
    biasing rate. This needs only be a rough estimate and should not critically
    affect the results unless it is set to something very low, leading to slow convergence,
@@ -3234,6 +3240,14 @@ electron-microscopy experiments. (See the `reference manual`_ for details)
 
    (4) [ps] Couple force constant to increase in similarity with reference density
    with this time constant. Larger times result in looser coupling.
+
+.. mdp:: density-guided-simulation-shift-vector
+
+   (0,0,0) [nm] Add this vector to all atoms in the 
+   density-guided-simulation-group before calculating forces and energies for
+   density-guided-simulations. Affects only the density-guided-simulation forces
+   and energies. Corresponds to a shift of the input density in the opposite
+   direction by (-1) * density-guided-simulation-shift-vector.
 
 User defined thingies
 ^^^^^^^^^^^^^^^^^^^^^

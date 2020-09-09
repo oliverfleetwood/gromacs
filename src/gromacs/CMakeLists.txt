@@ -103,7 +103,6 @@ add_subdirectory(trajectory)
 add_subdirectory(swap)
 add_subdirectory(essentialdynamics)
 add_subdirectory(pulling)
-add_subdirectory(awh)
 add_subdirectory(simd)
 add_subdirectory(imd)
 add_subdirectory(compat)
@@ -147,6 +146,10 @@ configure_file(version.h.cmakein version.h)
 if(GMX_INSTALL_LEGACY_API)
   install(FILES
           ${CMAKE_CURRENT_BINARY_DIR}/version.h
+	  analysisdata.h
+	  options.h
+	  selection.h
+	  trajectoryanalysis.h
           DESTINATION include/gromacs)
 endif()
 
@@ -167,7 +170,7 @@ gmx_configure_version_file(
 list(APPEND LIBGROMACS_SOURCES ${GENERATED_VERSION_FILE})
 
 # Mark some shared GPU implementation files to compile with CUDA if needed
-if (GMX_USE_CUDA)
+if (GMX_GPU_CUDA)
     get_property(LIBGROMACS_GPU_IMPL_SOURCES GLOBAL PROPERTY GMX_LIBGROMACS_GPU_IMPL_SOURCES)
     set_source_files_properties(${LIBGROMACS_GPU_IMPL_SOURCES} PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT OBJ)
 endif()
@@ -183,7 +186,7 @@ if (GMX_CLANG_CUDA)
     endforeach()
 endif()
 
-if (GMX_USE_CUDA)
+if (GMX_GPU_CUDA)
     # Work around FindCUDA that prevents using target_link_libraries()
     # with keywords otherwise...
     set(CUDA_LIBRARIES PRIVATE ${CUDA_LIBRARIES})
@@ -222,7 +225,7 @@ gmx_target_compile_options(libgromacs)
 target_compile_definitions(libgromacs PRIVATE HAVE_CONFIG_H)
 target_include_directories(libgromacs SYSTEM BEFORE PRIVATE ${PROJECT_SOURCE_DIR}/src/external/thread_mpi/include)
 
-if (GMX_USE_OPENCL)
+if (GMX_GPU_OPENCL)
     option(GMX_EXTERNAL_CLFFT "True if an external clFFT is required to be used" FALSE)
     mark_as_advanced(GMX_EXTERNAL_CLFFT)
 
@@ -354,13 +357,22 @@ endif()
 # for the binary
 if (NOT GMX_BUILD_MDRUN_ONLY OR BUILD_SHARED_LIBS)
     install(TARGETS libgromacs
-            COMPONENT libraries
             EXPORT libgromacs
-            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            LIBRARY
+                DESTINATION ${CMAKE_INSTALL_LIBDIR}
+                COMPONENT libraries
+            RUNTIME
+                DESTINATION ${CMAKE_INSTALL_BINDIR}
+                COMPONENT libraries
+            ARCHIVE
+                DESTINATION ${CMAKE_INSTALL_LIBDIR}
+                COMPONENT libraries
             INCLUDES DESTINATION include)
     target_compile_definitions(libgromacs PUBLIC $<INSTALL_INTERFACE:GMX_DOUBLE=${GMX_DOUBLE_VALUE}>)
+    # legacy headers use c++17 features, so consumer codes need to use that standard, too
+    if(GMX_INSTALL_LEGACY_API)
+        target_compile_features(libgromacs INTERFACE cxx_std_${CMAKE_CXX_STANDARD})
+    endif()
     add_library(Gromacs::libgromacs ALIAS libgromacs)
 endif()
 
@@ -372,7 +384,7 @@ endif()
 # using the CUDA runtime, but currently there's no reason to want to
 # do that.
 if (INSTALL_CUDART_LIB) #can be set manual by user
-    if (GMX_USE_CUDA)
+    if (GMX_GPU_CUDA)
         foreach(CUDA_LIB ${CUDA_LIBRARIES})
             string(REGEX MATCH "cudart" IS_CUDART ${CUDA_LIB})
             if(IS_CUDART) #libcuda should not be installed
@@ -387,7 +399,7 @@ if (INSTALL_CUDART_LIB) #can be set manual by user
     endif()
 endif()
 
-if(GMX_USE_OPENCL)
+if(GMX_GPU_OPENCL)
     # Install the utility headers
     file(GLOB OPENCL_INSTALLED_FILES
         gpu_utils/vectype_ops.clh
