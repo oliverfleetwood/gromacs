@@ -134,7 +134,7 @@ enum tpxv
     tpxv_AddSizeField, /**< Added field with information about the size of the serialized tpr file in bytes, excluding the header */
     tpxv_StoreNonBondedInteractionExclusionGroup, /**< Store the non bonded interaction exclusion group in the topology */
     tpxv_VSite1,                                  /**< Added 1 type virtual site */
-    tpxv_MetaPullCoord,                               /**< Support for meta pull coordinates */
+    tpxv_TransformationPullCoord,                               /**< Support for transformation pull coordinates */
     tpxv_Count,                                    /**< the total number of tpxv versions */
 };
 
@@ -345,7 +345,7 @@ static void do_pull_coord(gmx::ISerializer* serializer,
         }
         serializer->doIvec(&pcrd->dim);
         serializer->doInt(&pcrd->eType);
-        if (file_version >= tpxv_MetaPullCoord && pcrd->eGeom == epullgMETA)
+        if (file_version >= tpxv_TransformationPullCoord && pcrd->eGeom == epullgTRANSFORMATION)
         {
             std::string buf;
             if (serializer->reading())

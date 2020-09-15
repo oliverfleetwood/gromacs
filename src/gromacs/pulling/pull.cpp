@@ -336,7 +336,7 @@ static void apply_forces_coord(struct pull_t*               pull,
      * to data races.
      *
      * This may also lead to potential issues with force redistribution
-     * for meta pull coordinates
+     * for transformation pull coordinates
      */
 
     const pull_coord_work_t& pcrd = pull->coord[coord];
@@ -354,7 +354,7 @@ static void apply_forces_coord(struct pull_t*               pull,
         }
         apply_forces_grp(&pull->group[pcrd.params.group[1]], masses, f_tot, 1, f, pull->nthreads);
     }
-    else if (pcrd.params.eGeom == epullgMETA)
+    else if (pcrd.params.eGeom == epullgTRANSFORMATION)
     {
         return;
     }
@@ -683,13 +683,13 @@ static double get_dihedral_angle_coord(PullCoordSpatialData* spatialData)
 }
 
 /**
- * Calculates pull->coord[coord_ind].spatialData.value for meta pull coordinates
+ * Calculates pull->coord[coord_ind].spatialData.value for transformation pull coordinates
  * This requires the values of the pull coordinates of lower indices to be set
  * @param pull
  * @param coord_ind
  * @return
  */
-static double get_meta_pull_value(struct pull_t* pull, int coord_ind)
+static double get_transformation_pull_value(struct pull_t* pull, int coord_ind)
 {
     double result                     = 0;
     pull_coord_work_t*    coord        = &pull->coord[coord_ind];
@@ -709,12 +709,12 @@ static double get_meta_pull_value(struct pull_t* pull, int coord_ind)
     }
     catch (mu::Parser::exception_type& e)
     {
-        gmx_fatal(FARGS, "failed to evaluate expression for meta pull-coord%d: %s\n", coord_ind + 1,
+        gmx_fatal(FARGS, "failed to evaluate expression for transformation pull-coord%d: %s\n", coord_ind + 1,
                   e.GetMsg().c_str());
     }
     if (debug)
     {
-        fprintf(debug, "Computed meta pull coordinate %d and got value %4.6f\n",
+        fprintf(debug, "Computed transformation pull coordinate %d and got value %4.6f\n",
                 coord_ind + 1, result);
     }
     return result;
@@ -758,8 +758,8 @@ static void get_pull_coord_distance(struct pull_t* pull, int coord_ind, const t_
         case epullgANGLEAXIS:
             spatialData.value = gmx_angle_between_dvecs(spatialData.dr01, spatialData.vec);
             break;
-        case epullgMETA:
-            spatialData.value = get_meta_pull_value(pull, coord_ind);
+        case epullgTRANSFORMATION:
+            spatialData.value = get_transformation_pull_value(pull, coord_ind);
             break;
         default: gmx_incons("Unsupported pull type in get_pull_coord_distance");
     }
@@ -1006,8 +1006,8 @@ do_constraint(struct pull_t* pull, t_pbc* pbc, rvec* x, rvec* v, gmx_bool bMaste
                     dsvmul(lambda * rm * pgrp0->invtm, vec, dr0);
                     dr_tot[c] += -lambda;
                     break;
-                case epullgMETA:
-                    gmx_fatal(FARGS, "META coordinates are incompatible with constraints.");
+                case epullgTRANSFORMATION:
+                    gmx_fatal(FARGS, "transformation coordinates are incompatible with constraints.");
                 default: gmx_incons("Invalid enumeration value for eGeom");
             }
 
@@ -1494,32 +1494,32 @@ static void check_external_potential_registration(const struct pull_t* pull)
     }
 }
 
-double compute_force_from_meta_coord(struct pull_t* pull, int meta_coord_ind, int coord_ind)
+double compute_force_from_transformation_coord(struct pull_t* pull, int transformation_coord_ind, int coord_ind)
 {
-    const pull_coord_work_t& meta_pcrd = pull->coord[meta_coord_ind];
+    const pull_coord_work_t& transformation_pcrd = pull->coord[transformation_coord_ind];
     // epsilon for numerical differentiation.
     // TODO make it possible to override epsilon with mdp option or environment variable etc.
     const double       epsilon    = 1e-9;
-    const double       meta_value = meta_pcrd.spatialData.value;
+    const double       transformation_value = transformation_pcrd.spatialData.value;
     pull_coord_work_t& pre_pcrd   = pull->coord[coord_ind];
     // Perform numerical differentiation of 1st order
     pre_pcrd.spatialData.value += epsilon;
-    double meta_value_eps = get_meta_pull_value(pull, meta_coord_ind);
-    double derivative     = (meta_value_eps - meta_value) / epsilon;
+    double transformation_value_eps = get_transformation_pull_value(pull, transformation_coord_ind);
+    double derivative     = (transformation_value_eps - transformation_value) / epsilon;
     pre_pcrd.spatialData.value -= epsilon; // reset pull coordinate value
-    double result = meta_pcrd.scalarForce * derivative;
+    double result = transformation_pcrd.scalarForce * derivative;
     if (debug)
     {
         fprintf(debug,
-                "Distributing force %4.4f for meta coordinate %d to coordinate %d with force "
+                "Distributing force %4.4f for transformation coordinate %d to coordinate %d with force "
                 "%4.4f\n",
-                meta_pcrd.scalarForce, meta_coord_ind, coord_ind, result);
+                transformation_pcrd.scalarForce, transformation_coord_ind, coord_ind, result);
     }
     return result;
 }
 
 /**
- * Applies a force of any non-meta pull coordinate
+ * Applies a force of any non-transformation pull coordinate
  * @param pull
  * @param coord_index
  * @param coord_force
@@ -1550,14 +1550,14 @@ static void apply_default_pull_coord_force(struct pull_t*        pull,
 }
 
 /**
- * Applies a force of a meta pull coordinate and distributes it to pull coordinates of lower rank
+ * Applies a force of a transformation pull coordinate and distributes it to pull coordinates of lower rank
  * @param pull
  * @param coord_index
  * @param coord_force
  * @param masses
  * @param forceWithVirial
  */
-static void apply_meta_pull_coord_force(struct pull_t*        pull,
+static void apply_transformation_pull_coord_force(struct pull_t*        pull,
                                         int                   coord_index,
                                         double                coord_force,
                                         const real*           masses,
@@ -1570,26 +1570,26 @@ static void apply_meta_pull_coord_force(struct pull_t*        pull,
     }
     pull_coord_work_t* pcrd;
     pcrd = &pull->coord[coord_index];
-    if (pcrd->params.eGeom == epullgMETA)
+    if (pcrd->params.eGeom == epullgTRANSFORMATION)
     {
         pcrd->scalarForce = coord_force;
         for (int previous_coord_index = 0; previous_coord_index < coord_index; previous_coord_index++)
         {
             pull_coord_work_t* previous_pcrd = &pull->coord[previous_coord_index];
-            if (previous_pcrd->params.eGeom == epullgMETA)
+            if (previous_pcrd->params.eGeom == epullgTRANSFORMATION)
             {
                 /*
-                 * We can have a meta pull coordinate depend on another sub-meta pull coordinate
+                 * We can have a transformation pull coordinate depend on another sub-transformation pull coordinate
                  * as long as it has force constant set to 0.
-                 * The real non-meta pull coordinates will have the force distributed directly from
-                 * the highest ranked meta coordinate with a force constant != 0 by numerical
+                 * The real non-transformation pull coordinates will have the force distributed directly from
+                 * the highest ranked transformation coordinate with a force constant != 0 by numerical
                  * differentiation. Here we avoid redistributing the force twice (hopefully).
                  */
                 return;
             }
             double previous_coord_force =
-                    compute_force_from_meta_coord(pull, coord_index, previous_coord_index);
-            apply_meta_pull_coord_force(pull, previous_coord_index, previous_coord_force, masses,
+                    compute_force_from_transformation_coord(pull, coord_index, previous_coord_index);
+            apply_transformation_pull_coord_force(pull, previous_coord_index, previous_coord_force, masses,
                                         forceWithVirial);
         }
     }
@@ -1626,9 +1626,9 @@ void apply_external_pull_coord_force(struct pull_t*        pull,
         GMX_ASSERT(pcrd->bExternalPotentialProviderHasBeenRegistered,
                    "apply_external_pull_coord_force called for an unregistered pull coordinate");
 
-        if (pcrd->params.eGeom == epullgMETA)
+        if (pcrd->params.eGeom == epullgTRANSFORMATION)
         {
-            apply_meta_pull_coord_force(pull, coord_index, coord_force, masses, forceWithVirial);
+            apply_transformation_pull_coord_force(pull, coord_index, coord_force, masses, forceWithVirial);
         }
         else
         {
@@ -1706,9 +1706,9 @@ real pull_potential(struct pull_t*        pull,
             }
             PullCoordVectorForces pullCoordForces = do_pull_pot_coord(
                     pull, coord_index, pbc, t, lambda, &V, computeVirial ? virial : nullptr, &dVdl);
-            if (pcrd->params.eGeom == epullgMETA)
+            if (pcrd->params.eGeom == epullgTRANSFORMATION)
             {
-                apply_meta_pull_coord_force(pull, coord_index, pcrd->scalarForce,
+                apply_transformation_pull_coord_force(pull, coord_index, pcrd->scalarForce,
                                                 masses, force);
             }
             else
@@ -2108,7 +2108,7 @@ struct pull_t* init_pull(FILE*                     fplog,
             case epullgDIR:
             case epullgDIRPBC:
             case epullgCYL:
-            case epullgMETA:
+            case epullgTRANSFORMATION:
             case epullgANGLEAXIS:
                 copy_rvec_to_dvec(pull_params->coord[c].vec, pcrd->spatialData.vec);
                 break;

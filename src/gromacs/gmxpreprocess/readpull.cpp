@@ -282,13 +282,13 @@ static void init_pull_coord(pull_params_t* pull,
             warning(wi, buf);
         }
     }
-    if (pcrd->eGeom == epullgMETA)
+    if (pcrd->eGeom == epullgTRANSFORMATION)
     {
-        /*Validate the mathematical expression to epullgMETA*/
+        /*Validate the mathematical expression to epullgTRANSFORMATION*/
         if (pcrd->expression == nullptr || sizeof(pcrd->expression) == 0)
         {
             gmx_fatal(FARGS,
-                      "pull-coord%d-expression not set for pull coordinate of geometry 'meta'",
+                      "pull-coord%d-expression not set for pull coordinate of geometry 'transformation'",
                       coordNum);
         }
         /* make sure that the kappa of all previous pull coords is 0*/
@@ -299,8 +299,8 @@ static void init_pull_coord(pull_params_t* pull,
             {
                 gmx_fatal(FARGS,
                           "pull-coord%d-k not must be set to zero "
-                          "since pull-coord%d-geometry=meta.\n Met"
-                          "Meta coordinates and their variables must occur first. "
+                          "since pull-coord%d-geometry=transformation.\n Met"
+                          "Transformation coordinates and their variables must occur first. "
                           "Change the order of the pull coordinates if "
                           "pull-coord%d does not depend on pull-coord%d",
                           previous_coord_index + 1,
@@ -405,14 +405,14 @@ std::vector<std::string> read_pullparams(std::vector<t_inpfile>* inp, pull_param
             case epullgDIHEDRAL: pcrd->ngroup = 6; break;
             case epullgDIRRELATIVE:
             case epullgANGLE: pcrd->ngroup = 4; break;
-            case epullgMETA: pcrd->ngroup = 0; break;
+            case epullgTRANSFORMATION: pcrd->ngroup = 0; break;
             default: pcrd->ngroup = 2; break;
         }
 
         nscan = sscanf(groups, "%d %d %d %d %d %d %d", &pcrd->group[0], &pcrd->group[1],
                        &pcrd->group[2], &pcrd->group[3], &pcrd->group[4], &pcrd->group[5], &idum);
         sprintf(buf, "nscan %d\n", nscan);
-        if (nscan == -1 && pcrd->eGeom == epullgMETA)
+        if (nscan == -1 && pcrd->eGeom == epullgTRANSFORMATION)
         {
             // nscan returns -1 instead of 0. Just change its value and let the call fall through
             nscan = 0;
@@ -540,7 +540,7 @@ void make_pull_coords(pull_params_t* pull)
     for (c = 0; c < pull->ncoord; c++)
     {
         pcrd = &pull->coord[c];
-        if(pcrd->eGeom == epullgMETA && pcrd->ngroup == 0)
+        if(pcrd->eGeom == epullgTRANSFORMATION && pcrd->ngroup == 0)
         {
             continue;
         }
