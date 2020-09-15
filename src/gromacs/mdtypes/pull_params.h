@@ -67,6 +67,7 @@ typedef struct
 } t_pull_group;
 
 /*! Maximum number of pull groups that can be used in a pull coordinate */
+//TODO maybe update the number of pull groups here, we'll see. Maybe write a special case for it in tpxio.cpp
 static const int c_pullCoordNgroupMax = 6;
 
 /*! \brief Struct that defines a pull coordinate */
@@ -74,6 +75,7 @@ typedef struct
 {
     int      eType; /**< The pull type: umbrella, constraint, ... */
     char*    externalPotentialProvider; /**< Name of the module providing the external potential, only used with eType==epullEXTERNAL */
+    const char*    expression; /**< Mathematical expression evaluated by the pull code for transformation coordinates */
     int      eGeom;                       /**< The pull geometry */
     int      ngroup;                      /**< The number of groups, depends on eGeom */
     int      group[c_pullCoordNgroupMax]; /**< The pull groups: indices into the group arrays in pull_t and pull_params_t, ngroup indices are used */
@@ -102,7 +104,6 @@ typedef struct pull_params_t
     int      nstfout;                 /**< Output interval for pull f */
     bool     bXOutAverage; /**< Write the average coordinate during the output interval */
     bool     bFOutAverage; /**< Write the average force during the output interval */
-
     t_pull_group* group; /**< groups to pull/restrain/etc/ */
     t_pull_coord* coord; /**< the pull coordinates */
 } pull_params_t;
