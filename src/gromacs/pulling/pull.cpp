@@ -80,7 +80,7 @@
 #include "gromacs/utility/smalloc.h"
 #include "gromacs/utility/strconvert.h"
 #include "gromacs/mdtypes/md_enums.h"
-#include "muParser.h"
+#include "muparser/muParser.h"
 
 #include "pull_internal.h"
 #include "../mdtypes/md_enums.h"
