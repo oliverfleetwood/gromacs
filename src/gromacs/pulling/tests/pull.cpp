@@ -164,17 +164,18 @@ protected:
             pull_coord_work_t x1_pcrd(params);
             // Create transformation pull coordinate
             params.eGeom      = epullgTRANSFORMATION;
-            params.expression = "x1^2 + 3".c_str();
+            const char * expression = "x1^2 + 3";
+            params.expression = expression;
             pull_coord_work_t transformation_pcrd(params);
             transformation_pcrd.expressionParser.initialize(1);
 
-            pull_t pull();
-            pull.coord = { x1_pcrd, transformation_pcrd };
+            pull_t pull;
+            pull.coord = std::vector<pull_coord_work_t>({x1_pcrd, transformation_pcrd});
             for (double v = 0; v < 10; v++)
             {
                 // transformation pull coord value
                 x1_pcrd.spatialData.value = v;
-                get_pull_coord_value(&pull, 1, pbc);
+                get_pull_coord_value(&pull, 1, &pbc);
                 EXPECT_DOUBLE_EQ(v * v + 3, transformation_pcrd.spatialData.value)
                         << "transformation coordinate value does not match the expected expression.";
 

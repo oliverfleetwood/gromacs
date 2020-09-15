@@ -143,7 +143,7 @@ struct PullCoordExpressionParser
     std::vector<double> variableValues;
     bool initialized;
     /* Constructor */
-    PullCoordExpressionParser(char* expressionChar):
+    PullCoordExpressionParser(const char* expressionChar):
         parser(),
         variableValues(0),
         initialized(false)

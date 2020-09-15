@@ -75,7 +75,7 @@ typedef struct
 {
     int      eType; /**< The pull type: umbrella, constraint, ... */
     char*    externalPotentialProvider; /**< Name of the module providing the external potential, only used with eType==epullEXTERNAL */
-    char*    expression; /**< Mathematical expression evaluated by the pull code for transformation coordinates */
+    const char*    expression; /**< Mathematical expression evaluated by the pull code for transformation coordinates */
     int      eGeom;                       /**< The pull geometry */
     int      ngroup;                      /**< The number of groups, depends on eGeom */
     int      group[c_pullCoordNgroupMax]; /**< The pull groups: indices into the group arrays in pull_t and pull_params_t, ngroup indices are used */
